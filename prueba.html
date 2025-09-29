@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Ahorcado (HTML + JavaScript)</title>
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--accent:#60a5fa;--muted:#94a3b8;--danger:#fb7185}
+    *{box-sizing:border-box;font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial}
+    body{background:linear-gradient(180deg,#071024 0%, #081026 100%);color:#e6eef8;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+    .card{background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));padding:20px;border-radius:12px;width:900px;max-width:100%;display:grid;grid-template-columns:320px 1fr;gap:18px;box-shadow:0 8px 30px rgba(2,6,23,0.6)}
+    header{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+    h1{font-size:18px;margin:0}
+    .controls{display:flex;gap:8px;align-items:center}
+    button{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--accent);padding:8px 12px;border-radius:8px;cursor:pointer}
+    button.primary{background:var(--accent);color:#04203b;border:none}
+    .left{display:flex;flex-direction:column;gap:12px;align-items:center}
+    .hangman-stage{width:260px;height:260px;padding:8px;background:linear-gradient(180deg,rgba(255,255,255,0.01),transparent);border-radius:10px;display:flex;align-items:center;justify-content:center}
+    .word{font-size:28px;letter-spacing:8px;margin-top:6px}
+    .info{font-size:13px;color:var(--muted)}
+    .keyboard{display:grid;grid-template-columns:repeat(9,1fr);gap:6px;margin-top:14px}
+    .key{padding:10px;border-radius:6px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03);cursor:pointer;user-select:none;text-align:center}
+    .key.disabled{opacity:0.35;cursor:not-allowed}
+    .footer{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;margin-top:8px;color:var(--muted)}
+    .status{font-weight:600}
+    .message{padding:8px 12px;border-radius:8px;background:rgba(255,255,255,0.02);display:inline-block}
+    @media (max-width:780px){.card{grid-template-columns:1fr;}}
+  </style>
+</head>
+<body>
+  <div class="card" role="application" aria-label="Juego del ahorcado">
+    <header>
+      <h1>Ahorcado — HTML + JavaScript</h1>
+      <div class="controls">
+        <button id="nuevoBtn">Nueva palabra</button>
+        <button id="resetBtn" class="primary">Reiniciar juego</button>
+      </div>
+    </header>
+
+    <section class="left">
+      <div class="hangman-stage" aria-hidden="true">
+        <!-- SVG que dibuja el ahorcado por etapas -->
+        <svg id="svgHangman" width="220" height="220" viewBox="0 0 120 140" xmlns="http://www.w3.org/2000/svg">
+          <!-- base y estructura -->
+          <line x1="10" y1="130" x2="110" y2="130" stroke="#7f9fbf" stroke-width="3" stroke-linecap="round"/>
+          <line x1="30" y1="130" x2="30" y2="10" stroke="#7f9fbf" stroke-width="3" stroke-linecap="round"/>
+          <line x1="30" y1="10" x2="80" y2="10" stroke="#7f9fbf" stroke-width="3" stroke-linecap="round"/>
+          <line x1="80" y1="10" x2="80" y2="25" stroke="#7f9fbf" stroke-width="3" stroke-linecap="round"/>
+
+          <!-- cabeza -->
+          <circle id="part-head" cx="80" cy="36" r="10" fill="none" stroke="#ff0000" stroke-width="2" style="opacity:0"/>
+          <!-- cuerpo -->
+          <line id="part-body" x1="80" y1="46" x2="80" y2="80" stroke="#ff0000" stroke-width="2" stroke-linecap="round" style="opacity:0"/>
+          <!-- brazo izquierdo -->
+          <line id="part-arm-l" x1="80" y1="56" x2="66" y2="70" stroke="#ff0000" stroke-width="2" stroke-linecap="round" style="opacity:0"/>
+          <!-- brazo derecho -->
+          <line id="part-arm-r" x1="80" y1="56" x2="94" y2="70" stroke="#ff0000" stroke-width="2" stroke-linecap="round" style="opacity:0"/>
+          <!-- pierna izquierda -->
+          <line id="part-leg-l" x1="80" y1="80" x2="68" y2="102" stroke="#ff0000" stroke-width="2" stroke-linecap="round" style="opacity:0"/>
+          <!-- pierna derecha -->
+          <line id="part-leg-r" x1="80" y1="80" x2="92" y2="102" stroke="#ff0000" stroke-width="2" stroke-linecap="round" style="opacity:0"/>
+        </svg>
+      </div>
+
+      <div class="info">
+        <div class="word" id="displayWord" aria-live="polite">_ _ _ _ _</div>
+        <div style="margin-top:8px;display:flex;gap:12px;align-items:center">
+          <div class="message">Intentos restantes: <span id="attempts">6</span></div>
+          <div class="message">Letras usadas: <span id="usedLetters">—</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <p class="status" id="statusMsg">Adivina la palabra letra por letra. Puedes usar el teclado en pantalla o tu teclado físico.</p>
+
+      <div class="keyboard" id="keyboard" aria-label="Teclado de letras"></div>
+
+      <div style="margin-top:14px">
+        <label for="wordInput" class="info">O prueba escribiendo una letra y presiona Enter:</label>
+        <input id="wordInput" type="text" maxlength="1" style="padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);margin-left:8px;width:48px;text-align:center;background:transparent;color:inherit" aria-label="Entrada de letra" />
+      </div>
+    </section>
+
+    <div class="footer">
+      <div>Palabras: <span class="info">lista incorporada (modifica en el código)</span></div>
+      <div>Creado con ❤️</div>
+    </div>
+  </div>
+
+  <script>
+    // Lista de palabras (puedes editarla o cargar externamente)
+    const palabras = [
+      'python','programacion','ahorcado','inteligencia','juego','desarrollo','javascript','computadora','algoritmo','variable'
+    ];
+
+    const maxAttempts = 6;
+    let palabra = '';
+    let letrasAdivinadas = new Set();
+    let letrasUsadas = new Set();
+    let attempts = maxAttempts;
+
+    const displayWordEl = document.getElementById('displayWord');
+    const attemptsEl = document.getElementById('attempts');
+    const usedLettersEl = document.getElementById('usedLetters');
+    const keyboardEl = document.getElementById('keyboard');
+    const statusMsg = document.getElementById('statusMsg');
+    const wordInput = document.getElementById('wordInput');
+
+    const svgParts = [
+      document.getElementById('part-head'),
+      document.getElementById('part-body'),
+      document.getElementById('part-arm-l'),
+      document.getElementById('part-arm-r'),
+      document.getElementById('part-leg-l'),
+      document.getElementById('part-leg-r')
+    ];
+
+    function initKeyboard(){
+      const letters = 'abcdefghijklmnñopqrstuvwxyz'.split('');
+      keyboardEl.innerHTML = '';
+      letters.forEach(l => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'key';
+        btn.textContent = l;
+        btn.dataset.letter = l;
+        btn.addEventListener('click', ()=> handleGuess(l));
+        keyboardEl.appendChild(btn);
+      });
+    }
+
+    function newGame(){
+      palabra = palabras[Math.floor(Math.random() * palabras.length)].toLowerCase();
+      letrasAdivinadas.clear();
+      letrasUsadas.clear();
+      attempts = maxAttempts;
+      attemptsEl.textContent = attempts;
+      usedLettersEl.textContent = '—';
+      statusMsg.textContent = 'Adivina la palabra letra por letra.';
+      wordInput.value = '';
+      updateDisplay();
+      updateSVG();
+      resetKeyboard();
+    }
+
+    function updateDisplay(){
+      const chars = palabra.split('').map(c => (c === ' ' ? ' ' : (letrasAdivinadas.has(c) ? c : '_')));
+      displayWordEl.textContent = chars.join(' ');
+      checkWin();
+    }
+
+    function updateSVG(){
+      const wrong = maxAttempts - attempts;
+      svgParts.forEach((el, idx) => {
+        el.style.opacity = idx < wrong ? '1' : '0';
+      });
+    }
+
+    function handleGuess(letter){
+      if (attempts <= 0) return;
+      letter = letter.toLowerCase();
+      if (letrasUsadas.has(letter) || letrasAdivinadas.has(letter)) return;
+
+      if (palabra.includes(letter)){
+        letrasAdivinadas.add(letter);
+        statusMsg.textContent = `¡Bien! La letra "${letter}" está en la palabra.`;
+      } else {
+        attempts -= 1;
+        letrasUsadas.add(letter);
+        statusMsg.textContent = `Letra incorrecta: "${letter}"`;
+      }
+
+      attemptsEl.textContent = attempts;
+      usedLettersEl.textContent = Array.from(letrasUsadas).join(', ') || '—';
+      updateDisplay();
+      updateSVG();
+      updateKeyboardState(letter);
+
+      if (attempts <= 0) {
+        statusMsg.textContent = `💀 Perdiste. La palabra era: ${palabra}`;
+        revealWord();
+      }
+    }
+
+    function checkWin(){
+      const won = palabra.split('').every(ch => ch === ' ' || letrasAdivinadas.has(ch));
+      if (won){
+        statusMsg.textContent = `🎉 ¡Felicidades! Adivinaste la palabra: ${palabra}`;
+        disableAllKeys();
+      }
+    }
+
+    function revealWord(){
+      palabra.split('').forEach(ch => { if (ch !== ' ') letrasAdivinadas.add(ch); });
+      updateDisplay();
+      disableAllKeys();
+    }
+
+    function resetKeyboard(){
+      const keys = Array.from(keyboardEl.querySelectorAll('.key'));
+      keys.forEach(k => { k.classList.remove('disabled'); k.disabled = false; });
+    }
+
+    function updateKeyboardState(letter){
+      const btn = keyboardEl.querySelector(`[data-letter="${letter}"]`);
+      if (btn){ btn.classList.add('disabled'); btn.disabled = true; }
+    }
+
+    function disableAllKeys(){
+      const keys = Array.from(keyboardEl.querySelectorAll('.key'));
+      keys.forEach(k => { k.classList.add('disabled'); k.disabled = true; });
+    }
+
+    // Eventos de teclado físico
+    window.addEventListener('keydown', (e)=>{
+      if (e.key.length === 1 && /^[a-zA-ZñÑ]$/.test(e.key)){
+        handleGuess(e.key.toLowerCase());
+      } else if (e.key === 'Enter'){
+        const val = wordInput.value.trim();
+        if (val) handleGuess(val[0].toLowerCase());
+        wordInput.value = '';
+      }
+    });
+
+    document.getElementById('nuevoBtn').addEventListener('click', ()=> newGame());
+    document.getElementById('resetBtn').addEventListener('click', ()=> newGame());
+
+    // Inicializar
+    initKeyboard();
+    newGame();
+  </script>
+</body>
+</html>
