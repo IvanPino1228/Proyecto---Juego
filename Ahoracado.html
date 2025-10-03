@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Ahorcado (Version 1)</title>
+  <style>
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      text-align: center;
+      background-color: #f0f0f0;
+      margin: 0;
+      padding: 20px;
+    }
+    h1 {
+      color: #333;
+    }
+    #palabra {
+      font-size: 32px;
+      letter-spacing: 10px;
+      margin: 20px 0;
+      color: #007acc;
+    }
+    #intentos {
+      font-size: 18px;
+      margin: 10px;
+      color: #444;
+    }
+    #mensaje {
+      font-size: 20px;
+      font-weight: bold;
+      margin: 15px;
+    }
+    canvas {
+      background: #fff;
+      border: 1px solid #ccc;
+      margin: 20px auto;
+      display: block;
+    }
+    #controles {
+      margin-top: 20px;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 5px;
+      font-size: 16px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      background-color: #007acc;
+      color: white;
+      transition: background 0.3s;
+    }
+    button:hover {
+      background-color: #005f99;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎯 Juego del Ahorcado</h1>
+
+  <canvas id="lienzo" width="300" height="300"></canvas>
+
+  <div id="palabra"></div>
+  <div id="intentos"></div>
+  <div id="mensaje"></div>
+
+  <div id="controles">
+    <button onclick="nuevoJuego()">🔄 Nuevo Juego</button>
+    <button onclick="agregarPalabra()">➕ Añadir Palabra</button>
+  </div>
+
+  <script>
+    let palabras = ["PYTHON", "PROGRAMACION", "JAVASCRIPT", "AHORCADO", "INTELIGENCIA"];
+    let palabraSecreta = "";
+    let letrasAdivinadas = [];
+    let intentos = 6;
+
+    const palabraDiv = document.getElementById("palabra");
+    const intentosDiv = document.getElementById("intentos");
+    const mensajeDiv = document.getElementById("mensaje");
+    const canvas = document.getElementById("lienzo");
+    const ctx = canvas.getContext("2d");
+
+    function nuevoJuego() {
+      palabraSecreta = palabras[Math.floor(Math.random() * palabras.length)];
+      letrasAdivinadas = [];
+      intentos = 6;
+      mensajeDiv.textContent = "";
+      actualizarDisplay();
+      dibujarBase();
+    }
+
+    function actualizarDisplay() {
+      const mostrar = palabraSecreta.split("").map(l => letrasAdivinadas.includes(l) ? l : "_").join(" ");
+      palabraDiv.textContent = mostrar;
+      intentosDiv.textContent = `Intentos restantes: ${intentos}`;
+    }
+
+    function verificar(letra) {
+      if (letrasAdivinadas.includes(letra) || intentos <= 0) return;
+
+      if (palabraSecreta.includes(letra)) {
+        letrasAdivinadas.push(letra);
+      } else {
+        intentos--;
+        dibujarAhorcado(6 - intentos);
+      }
+
+      actualizarDisplay();
+      verificarFin();
+    }
+
+    function verificarFin() {
+      if (palabraSecreta.split("").every(l => letrasAdivinadas.includes(l))) {
+        mensajeDiv.textContent = "🎉 ¡Ganaste!";
+      } else if (intentos === 0) {
+        mensajeDiv.textContent = `💀 Perdiste. La palabra era: ${palabraSecreta}`;
+      }
+    }
+
+    // Dibujo en canvas
+    function dibujarBase() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "#000";
+      ctx.beginPath();
+      ctx.moveTo(50, 280);
+      ctx.lineTo(250, 280);
+      ctx.moveTo(100, 280);
+      ctx.lineTo(100, 50);
+      ctx.lineTo(200, 50);
+      ctx.lineTo(200, 80);
+      ctx.stroke();
+    }
+
+    function dibujarAhorcado(paso) {
+      ctx.strokeStyle = "#000";
+      switch(paso) {
+        case 1: ctx.beginPath(); ctx.arc(200, 100, 20, 0, Math.PI * 2); ctx.stroke(); break;
+        case 2: ctx.beginPath(); ctx.moveTo(200, 120); ctx.lineTo(200, 180); ctx.stroke(); break;
+        case 3: ctx.beginPath(); ctx.moveTo(200, 140); ctx.lineTo(170, 160); ctx.stroke(); break;
+        case 4: ctx.beginPath(); ctx.moveTo(200, 140); ctx.lineTo(230, 160); ctx.stroke(); break;
+        case 5: ctx.beginPath(); ctx.moveTo(200, 180); ctx.lineTo(180, 220); ctx.stroke(); break;
+        case 6: ctx.beginPath(); ctx.moveTo(200, 180); ctx.lineTo(220, 220); ctx.stroke(); break;
+      }
+    }
+
+    // Añadir palabra nueva al banco
+    function agregarPalabra() {
+      let nueva = prompt("Escribe una palabra nueva (solo letras, sin espacios):");
+      if (nueva) {
+        nueva = nueva.toUpperCase().replace(/[^A-ZÑ]/g, ""); // solo letras válidas
+        if (nueva.length > 0) {
+          palabras.push(nueva);
+          alert(`✅ Palabra "${nueva}" añadida al banco.`);
+        } else {
+          alert("⚠️ La palabra no es válida.");
+        }
+      }
+    }
+
+    // Escuchar teclas físicas
+    document.addEventListener("keydown", (event) => {
+      const letra = event.key.toUpperCase();
+      if (/^[A-ZÑ]$/.test(letra)) {
+        verificar(letra);
+      }
+    });
+
+    nuevoJuego();
+  </script>
+</body>
+</html>
