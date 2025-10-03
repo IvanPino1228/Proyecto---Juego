@@ -159,6 +159,18 @@
       }
     }
 
+    // 👉 Función para fijar una palabra temporal
+// Esta palabra será usada SOLO en la siguiente partida.
+let palabraTemporal = null;
+
+function setProximaPalabra(palabra) {
+  // Guardamos la palabra en una variable especial
+  palabraTemporal = palabra.toUpperCase().replace(/[^A-ZÑ]/g, "");
+  console.log(`Función setProximaPalabra llamada con: ${palabraTemporal}`);
+  alert("⚠️ La opción de fijar palabra temporal aún no está implementada.");
+}
+
+
     // Escuchar teclas físicas
     document.addEventListener("keydown", (event) => {
       const letra = event.key.toUpperCase();
