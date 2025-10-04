@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Ahorcado (Version 1)</title>
+  <title>Ahorcado con Niveles de Dificultad</title>
   <style>
     body {
       font-family: "Segoe UI", Arial, sans-serif;
@@ -53,6 +53,13 @@
     button:hover {
       background-color: #005f99;
     }
+    select {
+      padding: 8px;
+      font-size: 16px;
+      border-radius: 6px;
+      border: 1px solid #999;
+      margin-left: 10px;
+    }
   </style>
 </head>
 <body>
@@ -65,15 +72,25 @@
   <div id="mensaje"></div>
 
   <div id="controles">
+    <label for="dificultad">Dificultad:</label>
+    <select id="dificultad">
+      <option value="facil">Fácil</option>
+      <option value="medio" selected>Medio</option>
+      <option value="dificil">Difícil</option>
+    </select>
     <button onclick="nuevoJuego()">🔄 Nuevo Juego</button>
-    <button onclick="agregarPalabra()">➕ Añadir Palabra</button>
+    <button onclick="añadirPalabra()">➕ Añadir palabra</button>
   </div>
 
   <script>
-    let palabras = ["PYTHON", "PROGRAMACION", "JAVASCRIPT", "AHORCADO", "INTELIGENCIA"];
+    let palabras = [
+      "SOL", "LUNA", "PYTHON", "PROGRAMACION", "JAVASCRIPT", 
+      "AHORCADO", "INTELIGENCIA", "COMPUTADORA", "MICROPROCESADOR", "TECLADO"
+    ];
     let palabraSecreta = "";
     let letrasAdivinadas = [];
     let intentos = 6;
+    let palabraTemporal = null;
 
     const palabraDiv = document.getElementById("palabra");
     const intentosDiv = document.getElementById("intentos");
@@ -82,12 +99,38 @@
     const ctx = canvas.getContext("2d");
 
     function nuevoJuego() {
-      palabraSecreta = palabras[Math.floor(Math.random() * palabras.length)];
+      const nivel = document.getElementById("dificultad").value;
+
+      // En el futuro: si hay una palabra temporal definida, usarla
+      /*
+      if (palabraTemporal) {
+        palabraSecreta = palabraTemporal;
+        palabraTemporal = null;
+      } else {
+        palabraSecreta = seleccionarPalabraPorNivel(nivel);
+      }
+      */
+
+      palabraSecreta = seleccionarPalabraPorNivel(nivel);
       letrasAdivinadas = [];
       intentos = 6;
       mensajeDiv.textContent = "";
       actualizarDisplay();
       dibujarBase();
+    }
+
+    // Filtra palabras por longitud según la dificultad
+    function seleccionarPalabraPorNivel(nivel) {
+      let filtradas = [];
+      if (nivel === "facil") {
+        filtradas = palabras.filter(p => p.length >= 3 && p.length <= 6);
+      } else if (nivel === "medio") {
+        filtradas = palabras.filter(p => p.length >= 7 && p.length <= 9);
+      } else {
+        filtradas = palabras.filter(p => p.length >= 10);
+      }
+      if (filtradas.length === 0) filtradas = palabras;
+      return filtradas[Math.floor(Math.random() * filtradas.length)];
     }
 
     function actualizarDisplay() {
@@ -118,7 +161,7 @@
       }
     }
 
-    // Dibujo en canvas
+    // Dibujo del ahorcado
     function dibujarBase() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.lineWidth = 3;
@@ -145,31 +188,24 @@
       }
     }
 
-    // Añadir palabra nueva al banco
-    function agregarPalabra() {
-      let nueva = prompt("Escribe una palabra nueva (solo letras, sin espacios):");
-      if (nueva) {
-        nueva = nueva.toUpperCase().replace(/[^A-ZÑ]/g, ""); // solo letras válidas
-        if (nueva.length > 0) {
-          palabras.push(nueva);
-          alert(`✅ Palabra "${nueva}" añadida al banco.`);
-        } else {
-          alert("⚠️ La palabra no es válida.");
-        }
+    // 👉 Añadir nueva palabra mediante prompt
+    function añadirPalabra() {
+      let nueva = prompt("Escribe una nueva palabra para añadir al banco:") || "";
+      nueva = nueva.toUpperCase().replace(/[^A-ZÑ]/g, "");
+      if (nueva.length > 0) {
+        palabras.push(nueva);
+        alert(`✅ Palabra "${nueva}" añadida al banco.`);
+      } else {
+        alert("⚠️ No se añadió ninguna palabra (solo letras válidas).");
       }
     }
 
-    // 👉 Función para fijar una palabra temporal
-// Esta palabra será usada SOLO en la siguiente partida.
-let palabraTemporal = null;
-
-function setProximaPalabra(palabra) {
-  // Guardamos la palabra en una variable especial
-  palabraTemporal = palabra.toUpperCase().replace(/[^A-ZÑ]/g, "");
-  console.log(`Función setProximaPalabra llamada con: ${palabraTemporal}`);
-  alert("⚠️ La opción de fijar palabra temporal aún no está implementada.");
-}
-
+    // 👉 Función futura: fijar palabra temporal (no activa aún)
+    function setProximaPalabra(palabra) {
+      palabraTemporal = palabra.toUpperCase().replace(/[^A-ZÑ]/g, "");
+      console.log(`Función setProximaPalabra llamada con: ${palabraTemporal}`);
+      alert("⚠️ La opción de fijar palabra temporal aún no está implementada.");
+    }
 
     // Escuchar teclas físicas
     document.addEventListener("keydown", (event) => {
