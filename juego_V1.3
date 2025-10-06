@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Ahorcado (Multimodo)</title>
+  <style>
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      text-align: center;
+      background-color: #f0f0f0;
+      margin: 0;
+      padding: 20px;
+    }
+    h1 { color: #333; }
+    #rondaSuperior, #turnoSuperior {
+      font-size: 20px;
+      color: #333;
+      margin-top: 10px;
+      line-height: 1.4;
+    }
+    #palabra { font-size: 32px; letter-spacing: 10px; margin: 20px 0; color: #007acc; }
+    #intentos, #temporizador { font-size: 18px; margin: 10px; color: #444; display:inline-block; }
+    #mensaje { font-size: 20px; font-weight: bold; margin: 15px; }
+    #controles { margin-top: 20px; }
+    button {
+      padding: 10px 20px; margin: 5px; font-size: 16px;
+      border: none; border-radius: 8px; cursor: pointer;
+      background-color: #007acc; color: white; transition: background 0.3s;
+    }
+    button:hover { background-color: #005f99; }
+    select {
+      padding: 8px; font-size: 16px; border-radius: 6px; border: 1px solid #999; margin-left: 10px;
+    }
+    #multijugadorPanel { margin-top: 12px; display:none; text-align:left; max-width:700px; margin-left:auto; margin-right:auto; }
+    #jugadoresList { margin-top:8px; }
+    .jugadorRow { display:flex; justify-content:space-between; padding:6px 10px; background:#fff; border-radius:6px; margin-top:6px; border:1px solid #ddd; }
+    .small { font-size:13px; color:#666; }
+    #modoSelector { margin-bottom:10px; }
+    #currentPlayer { font-weight:700; margin-top:8px; }
+
+    #contenedorAhorcado {
+      display: flex;
+      justify-content: center;
+      gap: 40px;
+      margin-top: 20px;
+    }
+    #tecladoVirtual {
+      display: flex;
+      flex-wrap: wrap;
+      width: 220px;
+      justify-content: center;
+      align-content: flex-start;
+    }
+    #tecladoVirtual button {
+      width: 40px;
+      height: 40px;
+      margin: 5px;
+      font-size: 16px;
+      border: none;
+      border-radius: 5px;
+      background-color: #007acc;  /* AZUL BASE */
+      color: white;               /* LETRA BLANCA */
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    #tecladoVirtual button:hover {
+      background-color: #005f99;  /* AZUL OSCURO AL PASAR */
+    }
+    #tecladoVirtual button:disabled {
+     background-color: #999;     /* GRIS CUANDO SE DESHABILITA */
+      color: #666;                /* LETRA GRIS OSCURA */
+      cursor: not-allowed;
+    }
+
+  </style>
+</head>
+<body>
+  <h1>🎯 Juego del Ahorcado</h1>
+
+  <div id="modoSelector">
+    Modo:
+    <select id="modoJuego">
+      <option value="individual" selected>🎯 Individual</option>
+      <option value="multijugador">👥 Multijugador</option>
+      <option value="cronometrado">⏱️ Cronometrado</option>
+    </select>
+
+    <label id="labelDificultad" for="dificultad">Dificultad:</label>
+    <select id="dificultad">
+      <option value="facil">Fácil</option>
+      <option value="medio" selected>Medio</option>
+      <option value="dificil">Difícil</option>
+    </select>
+
+    <button id="btnAñadir" style="margin-left:10px;">➕ Añadir palabra</button>
+  </div>
+
+  <div id="rondaSuperior"></div>
+  <div id="turnoSuperior"></div>
+
+  <!-- Canvas y Teclado virtual -->
+  <div id="contenedorAhorcado">
+    <canvas id="lienzo" width="300" height="300"></canvas>
+    <div id="tecladoVirtual"></div>
+  </div>
+
+  <div id="palabra"></div>
+  <div>
+    <span id="intentos">Intentos restantes: 6</span>
+    <span id="temporizador">| ⏳ Tiempo: --</span>
+  </div>
+  <div id="mensaje"></div>
+
+  <div id="controles">
+    <button id="btnNuevo">🔄 Nuevo Juego</button>
+    <button id="btnStartMulti" style="display:none">▶️ Iniciar Multijugador</button>
+  </div>
+
+  <div id="multijugadorPanel">
+    <div class="small">Panel Multijugador</div>
+    <div id="rondaPanel" class="small" style="margin-top:4px;"></div>
+    <div id="currentPlayer"></div>
+    <div id="jugadoresList"></div>
+    <div id="multijugadorMsg" class="small" style="margin-top:8px;"></div>
+  </div>
+
+  <script>
+    const palabras = ["SOL","LUNA","PYTHON","PROGRAMACION","JAVASCRIPT","AHORCADO","INTELIGENCIA","COMPUTADORA","MICROPROCESADOR","TECLADO"];
+    let palabraSecreta="", letrasAdivinadas=[], letrasIntentadas=[], intentos=6;
+    let palabraTemporal=null, modo=document.getElementById('modoJuego').value, temporizadorId=null, tiempoRestante=null;
+
+    const canvas=document.getElementById('lienzo'), ctx=canvas.getContext('2d');
+    const palabraDiv=document.getElementById('palabra'), intentosSpan=document.getElementById('intentos'),
+    temporizadorSpan=document.getElementById('temporizador'), mensajeDiv=document.getElementById('mensaje'),
+    rondaSuperior=document.getElementById('rondaSuperior'), turnoSuperior=document.getElementById('turnoSuperior');
+
+    const modoSelect=document.getElementById('modoJuego'), dificultadSelect=document.getElementById('dificultad'),
+    labelDificultad=document.getElementById('labelDificultad'), btnNuevo=document.getElementById('btnNuevo'),
+    btnAñadir=document.getElementById('btnAñadir'), btnStartMulti=document.getElementById('btnStartMulti'),
+    multiPanel=document.getElementById('multijugadorPanel'), jugadoresListDiv=document.getElementById('jugadoresList'),
+    currentPlayerDiv=document.getElementById('currentPlayer'), multiMsg=document.getElementById('multijugadorMsg'),
+    rondaPanel=document.getElementById('rondaPanel');
+
+    let jugadores=[], erroresPorJugador=[], jugadorActualIndex=0, multijugadorEnCurso=false, jugadoresAdivinaron=[];
+    let rondaActual=1,totalRondas=0,jugadorQuePonePalabra=0;
+
+    function actualizarVisibilidadControles(){
+      modo=modoSelect.value;
+      if(modo==='multijugador'){
+        labelDificultad.style.display='none';
+        dificultadSelect.style.display='none';
+        btnStartMulti.style.display='inline-block';
+        multiPanel.style.display='block';
+        btnNuevo.style.display='none';
+        temporizadorSpan.style.display='none';
+      } else {
+        labelDificultad.style.display='inline';
+        dificultadSelect.style.display='inline';
+        btnStartMulti.style.display='none';
+        multiPanel.style.display='none';
+        btnNuevo.style.display='inline-block';
+        temporizadorSpan.style.display='inline-block';
+      }
+    }
+    modoSelect.addEventListener('change',actualizarVisibilidadControles);
+    actualizarVisibilidadControles();
+
+    function seleccionarPalabraPorNivel(n){
+      let f=[];
+      if(n==="facil")f=palabras.filter(p=>p.length<=6);
+      else if(n==="medio")f=palabras.filter(p=>p.length>=7&&p.length<=9);
+      else f=palabras.filter(p=>p.length>=10);
+      if(f.length===0)f=palabras;
+      return f[Math.floor(Math.random()*f.length)];
+    }
+    function actualizarDisplay(){
+      palabraDiv.textContent=palabraSecreta.split("").map(l=>letrasAdivinadas.includes(l)?l:"_").join(" ");
+      intentosSpan.textContent=`Intentos restantes: ${intentos}`;
+    }
+    function dibujarBase(){
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      ctx.lineWidth=3;ctx.strokeStyle="#000";
+      ctx.beginPath();ctx.moveTo(50,280);ctx.lineTo(250,280);
+      ctx.moveTo(100,280);ctx.lineTo(100,50);ctx.lineTo(200,50);ctx.lineTo(200,80);ctx.stroke();
+    }
+    function dibujarAhorcado(paso){
+      ctx.strokeStyle="#000";
+      switch(paso){
+        case 1:ctx.beginPath();ctx.arc(200,100,20,0,Math.PI*2);ctx.stroke();break;
+        case 2:ctx.beginPath();ctx.moveTo(200,120);ctx.lineTo(200,180);ctx.stroke();break;
+        case 3:ctx.beginPath();ctx.moveTo(200,140);ctx.lineTo(170,160);ctx.stroke();break;
+        case 4:ctx.beginPath();ctx.moveTo(200,140);ctx.lineTo(230,160);ctx.stroke();break;
+        case 5:ctx.beginPath();ctx.moveTo(200,180);ctx.lineTo(180,220);ctx.stroke();break;
+        case 6:ctx.beginPath();ctx.moveTo(200,180);ctx.lineTo(220,220);ctx.stroke();break;
+      }
+    }
+
+    function tiempoPorDificultad(n){if(n==='facil')return 90;if(n==='medio')return 60;return 45;}
+    function iniciarTemporizador(){
+      detenerTemporizador();
+      tiempoRestante=tiempoPorDificultad(dificultadSelect.value);
+      temporizadorSpan.textContent=`| ⏳ Tiempo: ${tiempoRestante}s`;
+      temporizadorId=setInterval(()=>{
+        tiempoRestante--;
+        temporizadorSpan.textContent=`| ⏳ Tiempo: ${tiempoRestante}s`;
+        if(tiempoRestante<=0){
+          clearInterval(temporizadorId);temporizadorId=null;
+          alert("⏰ ¡Se acabó el tiempo!");revelarPalabra();
+        }
+      },1000);
+    }
+    function detenerTemporizador(){if(temporizadorId){clearInterval(temporizadorId);temporizadorId=null;}temporizadorSpan.textContent="| ⏳ Tiempo: --";}
+
+    function añadirPalabra(){
+      let n=prompt("Escribe una nueva palabra:")||"";
+      n=n.toUpperCase().replace(/[^A-ZÑ]/g,"");
+      if(n.length>0){palabras.push(n);alert(`✅ Palabra "${n}" añadida.`);}
+      else alert("⚠️ No se añadió ninguna palabra.");
+    }
+    function setProximaPalabra(p){palabraTemporal=p.toUpperCase().replace(/[^A-ZÑ]/g,"");}
+
+    function nuevoJuego(){
+      modo=modoSelect.value;
+      letrasAdivinadas=[];letrasIntentadas=[];intentos=6;mensajeDiv.textContent="";
+      rondaSuperior.textContent="";turnoSuperior.textContent="";
+      if(modo==='individual'){detenerTemporizador();palabraSecreta=seleccionarPalabraPorNivel(dificultadSelect.value);}
+      else if(modo==='cronometrado'){palabraSecreta=seleccionarPalabraPorNivel(dificultadSelect.value);iniciarTemporizador();}
+      else if(modo==='multijugador'){detenerTemporizador();multiMsg.textContent="Pulse 'Iniciar Multijugador'.";rondaPanel.textContent="";}
+      dibujarBase();actualizarDisplay();crearTecladoVirtual();
+    }
+
+    btnStartMulti.addEventListener('click',()=>{
+      let num=parseInt(prompt("¿Cuántos jugadores? (2-6)"))||0;
+      if(num<2){alert("Mínimo 2 jugadores.");return;}
+      if(num>6)num=6;
+      jugadores=[];erroresPorJugador=Array(num).fill(0);jugadoresAdivinaron=Array(num).fill(false);
+      for(let i=0;i<num;i++){let n=prompt(`Nombre del jugador ${i+1}:`)||`Jugador ${i+1}`;jugadores.push(n);}
+      totalRondas=num;rondaActual=1;jugadorQuePonePalabra=0;
+      iniciarRonda();
+    });
+
+    function iniciarRonda(){
+      multijugadorEnCurso=false;
+      if(rondaActual>totalRondas){finalizarJuegoTotal();return;}
+      const nombreJugadorPalabra=jugadores[jugadorQuePonePalabra];
+      alert(`🌀 Ronda ${rondaActual} — palabra ingresada por ${nombreJugadorPalabra}. ¡A jugar!`);
+      rondaSuperior.textContent=`🌀 Ronda ${rondaActual} de ${totalRondas}`;
+      let palabra=prompt(`${nombreJugadorPalabra}, ingresa la palabra secreta:`)||"";
+      const limpia=palabra.toUpperCase().replace(/[^A-ZÑ]/g,"");
+      if(limpia.length<2){alert("Palabra muy corta.");return;}
+      setProximaPalabra(limpia);
+      palabraSecreta=palabraTemporal;palabraTemporal=null;
+      letrasAdivinadas=[];letrasIntentadas=[];intentos=6;
+      do{jugadorActualIndex=(jugadorQuePonePalabra+1)%jugadores.length;}
+      while(jugadorActualIndex===jugadorQuePonePalabra);
+      turnoSuperior.textContent=`Turno actual: ${jugadores[jugadorActualIndex]}`;
+      multijugadorEnCurso=true;
+      dibujarBase();actualizarDisplay();renderJugadoresList();updateCurrentPlayerDisplay();
+      rondaPanel.textContent=`Ronda actual: ${rondaActual} / ${totalRondas}`;
+      crearTecladoVirtual();
+    }
+
+    function renderJugadoresList(){
+      jugadoresListDiv.innerHTML="";
+      jugadores.forEach((n,i)=>{
+        const d=document.createElement("div");
+        d.className="jugadorRow";
+        d.innerHTML=`<div>${i+1}. ${n}</div><div>Errores totales: <span id="err-${i}">${erroresPorJugador[i]}</span></div>`;
+        jugadoresListDiv.appendChild(d);
+      });
+    }
+    function updateCurrentPlayerDisplay(){
+      if(multijugadorEnCurso){
+        currentPlayerDiv.textContent=`Turno de: ${jugadores[jugadorActualIndex]}`;
+        turnoSuperior.textContent=`Turno actual: ${jugadores[jugadorActualIndex]}`;
+      } else {currentPlayerDiv.textContent="";}
+    }
+    function pasarTurnoSiguiente(){
+      do{jugadorActualIndex=(jugadorActualIndex+1)%jugadores.length;}
+      while(jugadorActualIndex===jugadorQuePonePalabra);
+      updateCurrentPlayerDisplay();
+    }
+    function finalizarRonda(){
+      multijugadorEnCurso=false;
+      rondaActual++;jugadorQuePonePalabra=(jugadorQuePonePalabra+1)%jugadores.length;
+      setTimeout(()=>iniciarRonda(),1000);
+    }
+    function finalizarJuegoTotal(){
+      let minErr=Math.min(...erroresPorJugador);
+      let ganadores=jugadores.filter((n,i)=>erroresPorJugador[i]===minErr);
+      if(ganadores.length===1)alert(`🏆 Ganador final: ${ganadores[0]} (${minErr} errores)`);
+      else alert(`🤝 Empate entre: ${ganadores.join(", ")} (${minErr} errores)`);
+      rondaSuperior.textContent="Juego multijugador finalizado.";turnoSuperior.textContent="";
+      rondaPanel.textContent="";multijugadorEnCurso=false;
+    }
+    function revelarPalabra(){
+      palabraSecreta.split('').forEach(ch=>{if(!letrasAdivinadas.includes(ch))letrasAdivinadas.push(ch);});
+      actualizarDisplay();
+    }
+
+    document.addEventListener('keydown',e=>{
+      const k=e.key.toUpperCase();
+      if(!/^[A-ZÑ]$/.test(k))return;
+      if(modoSelect.value==='multijugador'&&multijugadorEnCurso)verificarMultijugador(k);
+      else verificarIndividual(k);
+    });
+
+    function verificarIndividual(l){
+      if(letrasIntentadas.includes(l)||intentos<=0)return;
+      letrasIntentadas.push(l);
+      const btn = document.getElementById(`btn-${l}`);
+      if (btn) btn.disabled = true;
+      if(palabraSecreta.includes(l))letrasAdivinadas.push(l);
+      else{intentos--;dibujarAhorcado(6-intentos);}
+      actualizarDisplay();
+      if(palabraSecreta.split("").every(x=>letrasAdivinadas.includes(x))){
+        alert(`🎉 ¡Ganaste! ${palabraSecreta}`);detenerTemporizador();
+      } else if(intentos===0){
+        alert(`💀 Perdiste. Palabra: ${palabraSecreta}`);detenerTemporizador();
+      }
+    }
+
+    function verificarMultijugador(l){
+      if(!multijugadorEnCurso)return;
+      if(letrasIntentadas.includes(l)||intentos<=0)return;
+      letrasIntentadas.push(l);
+      const btn = document.getElementById(`btn-${l}`);
+      if (btn) btn.disabled = true;
+      if(palabraSecreta.includes(l)){
+        letrasAdivinadas.push(l);
+        if(palabraSecreta.split("").every(x=>letrasAdivinadas.includes(x))){
+          revelarPalabra();
+          alert(`🎉 ¡Palabra adivinada por ${jugadores[jugadorActualIndex]}!`);
+          finalizarRonda();
+          return;
+        }
+      } else {
+        intentos--;
+        erroresPorJugador[jugadorActualIndex]++;
+        const sp=document.getElementById(`err-${jugadorActualIndex}`);
+        if(sp)sp.textContent=erroresPorJugador[jugadorActualIndex];
+        dibujarAhorcado(6-intentos);
+        if(intentos===0){
+          alert(`💀 Todos fallaron. La palabra era: ${palabraSecreta}`);
+          revelarPalabra();
+          finalizarRonda();
+          return;
+        }
+      }
+      actualizarDisplay();
+      pasarTurnoSiguiente();
+    }
+
+    btnNuevo.addEventListener('click',nuevoJuego);
+    btnAñadir.addEventListener('click',añadirPalabra);
+    window.onload=nuevoJuego;
+
+    function crearTecladoVirtual() {
+      const letras = "ABCDEFGHIJKLMNÑOPQRSTUVWXYZ".split("");
+      const tecladoDiv = document.getElementById("tecladoVirtual");
+      tecladoDiv.innerHTML = "";
+      letras.forEach(letra => {
+        const btn = document.createElement("button");
+        btn.textContent = letra;
+        btn.id = `btn-${letra}`;
+        btn.addEventListener("click", () => manejarLetraVirtual(letra));
+        tecladoDiv.appendChild(btn);
+      });
+    }
+
+    function manejarLetraVirtual(letra) {
+      if (modoSelect.value === 'multijugador' && multijugadorEnCurso) {
+        verificarMultijugador(letra);
+      } else {
+        verificarIndividual(letra);
+      }
+      document.getElementById(`btn-${letra}`).disabled = true;
+    }
+  </script>
+</body>
+</html>
