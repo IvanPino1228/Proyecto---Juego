@@ -1,0 +1,112 @@
+// ==========================
+// MODO MULTIJUGADOR AHORCADO
+// ==========================
+
+let jugadores = [];
+let puntuaciones = [];
+let jugadorActual = 0;
+let palabraObjetivo = "";
+let letrasAdivinadasMulti = [];
+let erroresPorJugador = [];
+let juegoEnCurso = false;
+
+// Iniciar modo multijugador
+function iniciarMultijugador() {
+  const numJugadores = parseInt(prompt("¿Cuántos jugadores van a participar? (mínimo 2)")) || 0;
+  if (numJugadores < 2) {
+    alert("Debe haber al menos 2 jugadores.");
+    return;
+  }
+
+  jugadores = [];
+  puntuaciones = Array(numJugadores).fill(0);
+  erroresPorJugador = Array(numJugadores).fill(0);
+
+  for (let i = 0; i < numJugadores; i++) {
+    const nombre = prompt(`Nombre del jugador ${i + 1}:`) || `Jugador ${i + 1}`;
+    jugadores.push(nombre);
+  }
+
+  alert(`${jugadores[0]} será el primero en ingresar la palabra secreta.`);
+  palabraObjetivo = prompt(`🔒 ${jugadores[0]}, escribe la palabra a adivinar:`).toUpperCase().replace(/[^A-ZÑ]/g, "");
+
+  if (palabraObjetivo.length < 2) {
+    alert("La palabra debe tener al menos 2 letras.");
+    return;
+  }
+
+  letrasAdivinadasMulti = [];
+  jugadorActual = 1; // el siguiente jugador empieza adivinando
+  juegoEnCurso = true;
+
+  alert(`✅ Comienza el turno de ${jugadores[jugadorActual]}`);
+  mostrarEstadoMultijugador();
+}
+
+// Mostrar el estado actual del juego multijugador
+function mostrarEstadoMultijugador() {
+  const palabraVisible = palabraObjetivo.split("").map(l => letrasAdivinadasMulti.includes(l) ? l : "_").join(" ");
+  console.clear();
+  console.log(`Palabra: ${palabraVisible}`);
+  console.log(`Turno actual: ${jugadores[jugadorActual]}`);
+  console.log(`Errores por jugador:`);
+  jugadores.forEach((j, i) => console.log(`  ${j}: ${erroresPorJugador[i]} errores`));
+  console.log("Escribe verificarTurno('LETRA') para jugar.");
+}
+
+// Jugar una letra en el turno actual
+function verificarTurno(letra) {
+  if (!juegoEnCurso) {
+    console.log("⚠️ No hay una partida multijugador activa. Usa iniciarMultijugador().");
+    return;
+  }
+
+  letra = letra.toUpperCase().replace(/[^A-ZÑ]/g, "");
+  if (letra.length !== 1) {
+    console.log("❌ Ingresa solo una letra válida.");
+    return;
+  }
+
+  if (letrasAdivinadasMulti.includes(letra)) {
+    console.log("⚠️ Esa letra ya fue intentada.");
+    return;
+  }
+
+  letrasAdivinadasMulti.push(letra);
+
+  if (palabraObjetivo.includes(letra)) {
+    console.log(`✅ Correcto, la letra "${letra}" está en la palabra.`);
+  } else {
+    console.log(`❌ La letra "${letra}" no está. +1 error para ${jugadores[jugadorActual]}`);
+    erroresPorJugador[jugadorActual]++;
+  }
+
+  // Verificar si se completó la palabra
+  if (palabraObjetivo.split("").every(l => letrasAdivinadasMulti.includes(l))) {
+    juegoEnCurso = false;
+    determinarGanador();
+    return;
+  }
+
+  // Cambiar turno
+  jugadorActual = (jugadorActual + 1) % jugadores.length;
+  mostrarEstadoMultijugador();
+}
+
+// Determinar el ganador (menos errores)
+function determinarGanador() {
+  const minErrores = Math.min(...erroresPorJugador);
+  const ganadores = jugadores.filter((j, i) => erroresPorJugador[i] === minErrores);
+  console.log("\n🎉 ¡La palabra fue adivinada!");
+  console.log(`Palabra: ${palabraObjetivo}`);
+  console.log("Errores finales:");
+  jugadores.forEach((j, i) => console.log(`  ${j}: ${erroresPorJugador[i]} errores`));
+
+  if (ganadores.length === 1) {
+    console.log(`🏆 El ganador es ${ganadores[0]} con ${minErrores} errores.`);
+  } else {
+    console.log(`🤝 Empate entre: ${ganadores.join(", ")} (${minErrores} errores cada uno).`);
+  }
+
+  console.log("Usa iniciarMultijugador() para jugar otra ronda.");
+}
