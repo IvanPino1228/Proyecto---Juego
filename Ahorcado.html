@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Ahorcado (Final)</title>
+  <style>
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      text-align: center;
+      background-color: #f0f0f0;
+      margin: 0;
+      padding: 20px;
+      transition: background-color 0.4s;
+    }
+    h1 { color: #333; margin: 0 0 8px 0; }
+    #topBar { margin-bottom: 8px; }
+    #modoSelector { margin-bottom: 6px; }
+    label { margin-left: 8px; }
+    select, button { padding: 8px; font-size: 14px; border-radius: 6px; }
+    #rondaSuperior, #turnoSuperior {
+      font-size: 18px;
+      color: #333;
+      margin-top: 8px;
+      line-height: 1.3;
+    }
+    #palabra { font-size: 30px; letter-spacing: 8px; margin: 16px 0; color: #007acc; }
+    #infoRow { margin-bottom: 6px; }
+    #intentos, #temporizador { font-size: 16px; color: #444; display:inline-block; margin: 0 6px; }
+    #mensaje { font-size: 18px; font-weight: bold; margin: 10px 0; min-height:22px; }
+    canvas { background: #fff; border: 1px solid #ccc; display:block; margin: 12px auto; transition: background-color 0.4s; }
+    #controles { margin-top: 8px; }
+    .btn { background-color:#007acc; color:#fff; border:none; cursor:pointer; margin:0 6px; border-radius:6px; }
+    .btn:hover { background:#005f99; }
+    #multijugadorPanel { margin-top: 12px; display:none; text-align:left; max-width:700px; margin-left:auto; margin-right:auto; }
+    .jugadorRow { display:flex; justify-content:space-between; padding:6px 10px; background:#fff; border-radius:6px; margin-top:6px; border:1px solid #ddd; }
+    .small { font-size:13px; color:#666; }
+    #keyboard { max-width:720px; margin: 12px auto 30px; display:flex; flex-wrap:wrap; justify-content:center; gap:6px; }
+    .key-btn { width:42px; height:42px; border-radius:6px; border:none; background:#eaeaea; cursor:pointer; font-weight:700; }
+    .key-btn:disabled { background:#cfcfcf; cursor:default; color:#777; }
+  </style>
+</head>
+<body>
+  <h1>🎯 Juego del Ahorcado</h1>
+
+  <div id="topBar">
+    <div id="modoSelector">
+      Modo:
+      <select id="modoJuego">
+        <option value="individual" selected>Individual</option>
+        <option value="multijugador">Multijugador</option>
+        <option value="cronometrado">Cronometrado</option>
+      </select>
+
+      <label id="labelDificultad" for="dificultad">Dificultad:</label>
+      <select id="dificultad">
+        <option value="facil">Fácil</option>
+        <option value="medio" selected>Medio</option>
+        <option value="dificil">Difícil</option>
+      </select>
+
+      <label for="fondoSelect">Fondo:</label>
+      <select id="fondoSelect">
+        <option value="clasico" selected>Clásico</option>
+        <option value="noche">Noche</option>
+        <option value="bosque">Bosque</option>
+        <option value="fuego">Fuego</option>
+        <option value="hielo">Hielo</option>
+      </select>
+
+      <label for="personajeSelect">Personaje:</label>
+      <select id="personajeSelect">
+        <option value="clasico" selected>Clásico</option>
+        <option value="mujer">Mujer</option>
+        <option value="hombre">Hombre</option>
+        <option value="robot">Robot</option>
+        <option value="esqueleto">Esqueleto</option>
+      </select>
+
+      <button id="btnAñadir" class="btn" style="margin-left:10px;">➕ Añadir palabra</button>
+    </div>
+  </div>
+
+  <div id="rondaSuperior"></div>
+  <div id="turnoSuperior"></div>
+
+  <canvas id="lienzo" width="360" height="320"></canvas>
+
+  <div id="palabra"></div>
+  <div id="infoRow">
+    <span id="intentos">Intentos restantes: 6</span>
+    <span id="temporizador">| ⏳ Tiempo: --</span>
+  </div>
+  <div id="mensaje"></div>
+
+  <div id="controles">
+    <button id="btnNuevo" class="btn">🔄 Nuevo Juego</button>
+    <button id="btnStartMulti" class="btn" style="display:none">▶️ Iniciar Multijugador</button>
+  </div>
+
+  <div id="multijugadorPanel">
+    <div class="small">Panel Multijugador</div>
+    <div id="rondaPanel" class="small" style="margin-top:6px;"></div>
+    <div id="currentPlayer" style="font-weight:700; margin-top:6px;"></div>
+    <div id="jugadoresList"></div>
+    <div id="multijugadorMsg" class="small" style="margin-top:8px;"></div>
+  </div>
+
+  <!-- Teclado virtual A-Z + Ñ siempre visible -->
+  <div id="keyboard"></div>
+
+<script>
+/* ====================================================
+   AHORCADO — Final integrado:
+   - modos (individual, multijugador por rondas, cronometrado)
+   - dificultad (solo individual/cronometrado)
+   - selector de fondo
+   - selector de personaje (dibujo)
+   - teclado físico + teclado virtual (A-Z + Ñ)
+   ==================================================== */
+
+const palabras = ["SOL","LUNA","PYTHON","PROGRAMACION","JAVASCRIPT","AHORCADO","INTELIGENCIA","COMPUTADORA","MICROPROCESADOR","TECLADO"];
+
+/* Estado general */
+let palabraSecreta = "";
+let letrasAdivinadas = [];
+let letrasIntentadas = [];
+let intentos = 6;
+let palabraTemporal = null;
+let modo = document.getElementById('modoJuego').value;
+let temporizadorId = null;
+let tiempoRestante = null;
+let fondoActual = "clasico";
+let personajeActual = "clasico";
+
+/* Multijugador */
+let jugadores = [], erroresPorJugador = [], jugadorActualIndex = 0;
+let multijugadorEnCurso = false, jugadoresAdivinaron = [];
+let rondaActual = 1, totalRondas = 0, jugadorQuePonePalabra = 0;
+
+/* DOM */
+const canvas = document.getElementById('lienzo');
+const ctx = canvas.getContext('2d');
+const palabraDiv = document.getElementById('palabra');
+const intentosSpan = document.getElementById('intentos');
+const temporizadorSpan = document.getElementById('temporizador');
+const mensajeDiv = document.getElementById('mensaje');
+const rondaSuperior = document.getElementById('rondaSuperior');
+const turnoSuperior = document.getElementById('turnoSuperior');
+
+const modoSelect = document.getElementById('modoJuego');
+const dificultadSelect = document.getElementById('dificultad');
+const labelDificultad = document.getElementById('labelDificultad');
+const btnNuevo = document.getElementById('btnNuevo');
+const btnAñadir = document.getElementById('btnAñadir');
+const btnStartMulti = document.getElementById('btnStartMulti');
+const multiPanel = document.getElementById('multijugadorPanel');
+const jugadoresListDiv = document.getElementById('jugadoresList');
+const currentPlayerDiv = document.getElementById('currentPlayer');
+const multiMsg = document.getElementById('multijugadorMsg');
+const rondaPanel = document.getElementById('rondaPanel');
+
+const fondoSelect = document.getElementById('fondoSelect');
+const personajeSelect = document.getElementById('personajeSelect');
+
+const keyboardDiv = document.getElementById('keyboard');
+
+/* --- Inicialización UI --- */
+function actualizarVisibilidadControles(){
+  modo = modoSelect.value;
+  if(modo === 'multijugador'){
+    labelDificultad.style.display = 'none';
+    dificultadSelect.style.display = 'none';
+    btnStartMulti.style.display = 'inline-block';
+    multiPanel.style.display = 'block';
+    btnNuevo.style.display = 'none';
+    temporizadorSpan.style.display = 'none';
+  } else {
+    labelDificultad.style.display = 'inline';
+    dificultadSelect.style.display = 'inline';
+    btnStartMulti.style.display = 'none';
+    multiPanel.style.display = 'none';
+    btnNuevo.style.display = 'inline-block';
+    temporizadorSpan.style.display = 'inline-block';
+  }
+}
+modoSelect.addEventListener('change', actualizarVisibilidadControles);
+actualizarVisibilidadControles();
+
+/* --- Fondos --- */
+function aplicarFondo(nombre){
+  fondoActual = nombre;
+  switch(nombre){
+    case 'clasico': document.body.style.backgroundColor = '#f0f0f0'; canvas.style.background = '#fff'; break;
+    case 'noche': document.body.style.backgroundColor = '#0f1724'; canvas.style.background = '#071026'; break;
+    case 'bosque': document.body.style.backgroundColor = '#e9f7ef'; canvas.style.background = '#ecf8ef'; break;
+    case 'fuego': document.body.style.backgroundColor = '#fff5f0'; canvas.style.background = '#fff0ea'; break;
+    case 'hielo': document.body.style.backgroundColor = '#f0f8ff'; canvas.style.background = '#eaf6ff'; break;
+    default: document.body.style.backgroundColor = '#f0f0f0'; canvas.style.background = '#fff';
+  }
+}
+fondoSelect.addEventListener('change', (e)=>aplicarFondo(e.target.value));
+aplicarFondo('clasico');
+
+/* --- Personajes: afecta dibujo --- */
+personajeSelect.addEventListener('change', (e)=>{
+  personajeActual = e.target.value;
+  // redibujar si hay algo en canvas:
+  dibujarBase();
+  // redraw current parts by number of errors:
+  const pasos = 6 - intentos;
+  for(let i=1;i<=pasos;i++) dibujarPersonajePaso(i);
+});
+
+/* --- Selección palabra por dificultad --- */
+function seleccionarPalabraPorNivel(n){
+  let f = [];
+  if(n === "facil") f = palabras.filter(p => p.length <= 6 && p.length >= 3);
+  else if(n === "medio") f = palabras.filter(p => p.length >=7 && p.length <= 9);
+  else f = palabras.filter(p => p.length >= 10);
+  if(f.length === 0) f = palabras;
+  return f[Math.floor(Math.random()*f.length)];
+}
+
+/* --- Display --- */
+function actualizarDisplay(){
+  palabraDiv.textContent = palabraSecreta.split("").map(l => letrasAdivinadas.includes(l) ? l : "_").join(" ");
+  intentosSpan.textContent = `Intentos restantes: ${intentos}`;
+}
+
+/* --- Dibujo base (estructura) --- */
+function dibujarBase(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = (fondoActual === "noche") ? "#fff" : "#000"; // blanco si fondo es noche
+
+  // poste
+  ctx.beginPath();
+  ctx.moveTo(50,300); ctx.lineTo(300,300);
+  ctx.moveTo(90,300); ctx.lineTo(90,30);
+  ctx.lineTo(200,30); ctx.lineTo(200,70);
+  ctx.stroke();
+}
+
+/* --- Dibujar personaje por 'paso' adaptado al personajeActual --- */
+function dibujarPersonajePaso(paso){
+  ctx.strokeStyle = "#000";
+  ctx.lineWidth = 3;
+  if(personajeActual === 'robot'){
+    // robot: cabeza cuadrada, cuerpo recto, brazos simples
+    if(paso === 1){ ctx.strokeRect(170,70,60,50); } // cabeza
+    if(paso === 2){ ctx.beginPath(); ctx.moveTo(200,120); ctx.lineTo(200,190); ctx.stroke(); } // cuerpo
+    if(paso === 3){ ctx.beginPath(); ctx.moveTo(200,130); ctx.lineTo(160,160); ctx.stroke(); } // izq
+    if(paso === 4){ ctx.beginPath(); ctx.moveTo(200,130); ctx.lineTo(240,160); ctx.stroke(); } // der
+    if(paso === 5){ ctx.beginPath(); ctx.moveTo(200,190); ctx.lineTo(170,230); ctx.stroke(); } // pierna izq
+    if(paso === 6){ ctx.beginPath(); ctx.moveTo(200,190); ctx.lineTo(230,230); ctx.stroke(); } // pierna der
+    return;
+  }
+
+  if(personajeActual === 'esqueleto'){
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 2;
+    if(paso === 1){ ctx.beginPath(); ctx.arc(200,95,20,0,Math.PI*2); ctx.stroke(); } // cabeza
+    if(paso === 2){ ctx.beginPath(); ctx.moveTo(200,115); ctx.lineTo(200,180); ctx.stroke(); } // torso
+    if(paso === 3){ ctx.beginPath(); ctx.moveTo(200,130); ctx.lineTo(170,150); ctx.stroke(); } // izq
+    if(paso === 4){ ctx.beginPath(); ctx.moveTo(200,130); ctx.lineTo(230,150); ctx.stroke(); } // der
+    if(paso === 5){ ctx.beginPath(); ctx.moveTo(200,180); ctx.lineTo(180,220); ctx.stroke(); } // pierna izq
+    if(paso === 6){ ctx.beginPath(); ctx.moveTo(200,180); ctx.lineTo(220,220); ctx.stroke(); } // pierna der
+    return;
+  }
+
+  // Mujer / Hombre / Clasico: base similar pero tiny differences
+  if(personajeActual === 'mujer'){
+    if(paso === 1){ ctx.beginPath(); ctx.arc(200,95,18,0,Math.PI*2); ctx.stroke(); /* cabello */ ctx.beginPath(); ctx.moveTo(185,86); ctx.lineTo(170,110); ctx.lineTo(230,110); ctx.stroke(); }
+    if(paso === 2){ ctx.beginPath(); ctx.moveTo(200,115); ctx.lineTo(200,180); ctx.stroke(); }
+    if(paso === 3){ ctx.beginPath(); ctx.moveTo(200,130); ctx.lineTo(170,155); ctx.stroke(); }
+    if(paso === 4){ ctx.beginPath(); ctx.moveTo(200,130); ctx.lineTo(230,155); ctx.stroke(); }
+    if(paso === 5){ ctx.beginPath(); ctx.moveTo(200,180); ctx.lineTo(180,220); ctx.stroke(); }
+    if(paso === 6){ ctx.beginPath(); ctx.moveTo(200,180); ctx.lineTo(220,220); ctx.stroke(); }
+    return;
+  }
+
+  if(personajeActual === 'hombre'){
+    if(paso === 1){ ctx.beginPath(); ctx.arc(200,95,20,0,Math.PI*2); ctx.stroke(); /* patilla */ ctx.beginPath(); ctx.moveTo(185,88); ctx.lineTo(195,95); ctx.stroke(); }
+    if(paso === 2){ ctx.beginPath(); ctx.moveTo(200,115); ctx.lineTo(200,185); ctx.stroke(); }
+    if(paso === 3){ ctx.beginPath(); ctx.moveTo(200,130); ctx.lineTo(160,155); ctx.stroke(); }
+    if(paso === 4){ ctx.beginPath(); ctx.moveTo(200,130); ctx.lineTo(240,155); ctx.stroke(); }
+    if(paso === 5){ ctx.beginPath(); ctx.moveTo(200,185); ctx.lineTo(180,225); ctx.stroke(); }
+    if(paso === 6){ ctx.beginPath(); ctx.moveTo(200,185); ctx.lineTo(220,225); ctx.stroke(); }
+    return;
+  }
+
+  // clasico
+  if(paso === 1){ ctx.beginPath(); ctx.arc(200,95,20,0,Math.PI*2); ctx.stroke(); }
+  if(paso === 2){ ctx.beginPath(); ctx.moveTo(200,115); ctx.lineTo(200,180); ctx.stroke(); }
+  if(paso === 3){ ctx.beginPath(); ctx.moveTo(200,130); ctx.lineTo(170,155); ctx.stroke(); }
+  if(paso === 4){ ctx.beginPath(); ctx.moveTo(200,130); ctx.lineTo(230,155); ctx.stroke(); }
+  if(paso === 5){ ctx.beginPath(); ctx.moveTo(200,180); ctx.lineTo(180,220); ctx.stroke(); }
+  if(paso === 6){ ctx.beginPath(); ctx.moveTo(200,180); ctx.lineTo(220,220); ctx.stroke(); }
+}
+
+/* --- Temporizador (cron) --- */
+function tiempoPorDificultad(n){ if(n==='facil') return 90; if(n==='medio') return 60; return 45; }
+function iniciarTemporizador(){
+  detenerTemporizador();
+  tiempoRestante = tiempoPorDificultad(dificultadSelect.value);
+  temporizadorSpan.textContent = `| ⏳ Tiempo: ${tiempoRestante}s`;
+  temporizadorId = setInterval(()=>{
+    tiempoRestante--;
+    temporizadorSpan.textContent = `| ⏳ Tiempo: ${tiempoRestante}s`;
+    if(tiempoRestante <= 0){
+      clearInterval(temporizadorId); temporizadorId = null;
+      alert("⏰ ¡Se acabó el tiempo!");
+      revelarPalabra();
+    }
+  },1000);
+}
+function detenerTemporizador(){ if(temporizadorId){ clearInterval(temporizadorId); temporizadorId = null; } temporizadorSpan.textContent = '| ⏳ Tiempo: --'; }
+
+/* --- Añadir palabra permanente --- */
+btnAñadir.addEventListener('click', ()=>{
+  let n = prompt("Escribe una nueva palabra:") || "";
+  n = n.toUpperCase().replace(/[^A-ZÑ]/g,"");
+  if(n.length>0){ palabras.push(n); alert(`✅ Palabra "${n}" añadida.`); } else alert("⚠️ No válida.");
+});
+
+/* --- setProximaPalabra (oculta internamente) --- */
+function setProximaPalabra(p){ palabraTemporal = p.toUpperCase().replace(/[^A-ZÑ]/g,""); }
+
+/* --- Nuevo juego general --- */
+function nuevoJuego(){
+  modo = modoSelect.value;
+  letrasAdivinadas = []; letrasIntentadas = []; intentos = 6;
+  mensajeDiv.textContent = ""; rondaSuperior.textContent = ""; turnoSuperior.textContent = "";
+  if(modo === 'individual'){ detenerTemporizador(); palabraSecreta = seleccionarPalabraPorNivel(dificultadSelect.value); }
+  else if(modo === 'cronometrado'){ palabraSecreta = seleccionarPalabraPorNivel(dificultadSelect.value); iniciarTemporizador(); }
+  else if(modo === 'multijugador'){ detenerTemporizador(); multiMsg.textContent = "Pulse 'Iniciar Multijugador'."; rondaPanel.textContent = ""; }
+  dibujarBase(); actualizarDisplay(); resetKeyboardButtons();
+}
+
+/* --- Seleccionar palabra segun nivel --- */
+function seleccionarPalabraPorNivel(n){
+  let f=[];
+  if(n==='facil') f = palabras.filter(p => p.length >= 3 && p.length <= 6);
+  else if(n==='medio') f = palabras.filter(p => p.length >= 7 && p.length <= 9);
+  else f = palabras.filter(p => p.length >= 10);
+  if(f.length === 0) f = palabras;
+  return f[Math.floor(Math.random()*f.length)];
+}
+
+/* --- Multijugador por rondas --- */
+btnStartMulti.addEventListener('click', ()=>{
+  let num = parseInt(prompt("¿Cuántos jugadores? (2-6)")) || 0;
+  if(isNaN(num) || num < 2){ alert("Se requieren al menos 2 jugadores."); return; }
+  if(num > 6) num = 6;
+  jugadores = []; erroresPorJugador = Array(num).fill(0); jugadoresAdivinaron = Array(num).fill(false);
+  for(let i=0;i<num;i++){ let n = prompt(`Nombre del jugador ${i+1}:`) || `Jugador ${i+1}`; jugadores.push(n.trim() || `Jugador ${i+1}`); }
+  totalRondas = num; rondaActual = 1; jugadorQuePonePalabra = 0;
+  iniciarRonda();
+});
+
+function iniciarRonda(){
+  multijugadorEnCurso = false;
+  if(rondaActual > totalRondas){ finalizarJuegoTotal(); return; }
+  const nombre = jugadores[jugadorQuePonePalabra];
+  alert(`🌀 Ronda ${rondaActual} — palabra ingresada por ${nombre}. ¡A jugar!`);
+  rondaSuperior.textContent = `🌀 Ronda ${rondaActual} de ${totalRondas}`;
+  // pedir palabra del jugador actual (no participa en su ronda)
+  let palabra = prompt(`${nombre}, ingresa la palabra secreta:`) || "";
+  palabra = palabra.toUpperCase().replace(/[^A-ZÑ]/g,"");
+  if(palabra.length < 2){ alert("Palabra muy corta."); return; }
+  setProximaPalabra(palabra);
+  palabraSecreta = palabraTemporal; palabraTemporal = null;
+  letrasAdivinadas = []; letrasIntentadas = []; intentos = 6;
+  // el primer jugador en adivinar será el siguiente al que puso la palabra
+  jugadorActualIndex = (jugadorQuePonePalabra + 1) % jugadores.length;
+  // si el siguiente coincide con el que puso (solo posible si 1 jugador) — saltar, but players>=2
+  multijugadorEnCurso = true;
+  dibujarBase(); actualizarDisplay(); renderJugadoresList(); updateCurrentPlayerDisplay();
+  rondaPanel.textContent = `Ronda actual: ${rondaActual} / ${totalRondas}`;
+  turnoSuperior.textContent = `Turno actual: ${jugadores[jugadorActualIndex]}`;
+  resetKeyboardButtons();
+}
+
+function renderJugadoresList(){
+  jugadoresListDiv.innerHTML = "";
+  jugadores.forEach((n,i)=>{
+    const d = document.createElement('div');
+    d.className = 'jugadorRow';
+    d.innerHTML = `<div>${i+1}. ${n}</div><div>Errores totales: <span id="err-${i}">${erroresPorJugador[i]}</span></div>`;
+    jugadoresListDiv.appendChild(d);
+  });
+}
+function updateCurrentPlayerDisplay(){
+  if(multijugadorEnCurso){
+    currentPlayerDiv.textContent = `Turno de: ${jugadores[jugadorActualIndex]}`;
+    turnoSuperior.textContent = `Turno actual: ${jugadores[jugadorActualIndex]}`;
+  } else {
+    currentPlayerDiv.textContent = "";
+    turnoSuperior.textContent = "";
+  }
+}
+function pasarTurnoSiguiente(){
+  do { jugadorActualIndex = (jugadorActualIndex + 1) % jugadores.length; } 
+  while(jugadorActualIndex === jugadorQuePonePalabra);
+  updateCurrentPlayerDisplay();
+}
+
+/* final de ronda: avanzar a siguiente ronda */
+function finalizarRonda(){
+  multijugadorEnCurso = false;
+  rondaActual++;
+  jugadorQuePonePalabra = (jugadorQuePonePalabra + 1) % jugadores.length;
+  setTimeout(()=> iniciarRonda(), 800);
+}
+
+/* finalizar todo el juego multijugador: calcular ganador */
+function finalizarJuegoTotal(){
+  let minErr = Math.min(...erroresPorJugador);
+  let ganadores = jugadores.filter((n,i)=>erroresPorJugador[i] === minErr);
+  if(ganadores.length === 1) alert(`🏆 Ganador final: ${ganadores[0]} (${minErr} errores)`);
+  else alert(`🤝 Empate entre: ${ganadores.join(", ")} (${minErr} errores)`);
+  rondaSuperior.textContent = "Juego multijugador finalizado.";
+  turnoSuperior.textContent = "";
+  rondaPanel.textContent = "";
+  multijugadorEnCurso = false;
+}
+
+/* revelar palabra */
+function revelarPalabra(){
+  palabraSecreta.split('').forEach(ch=>{ if(!letrasAdivinadas.includes(ch)) letrasAdivinadas.push(ch); });
+  actualizarDisplay();
+}
+
+/* --- Entrada: teclado físico + virtual --- */
+document.addEventListener('keydown', (e)=>{
+  const k = e.key.toUpperCase();
+  if(!/^[A-ZÑ]$/.test(k)) return;
+  handleLetterInput(k);
+});
+
+/* Crear teclado virtual (A..Z + Ñ) */
+const letras = "ABCDEFGHIJKLMNÑOPQRSTUVWXYZ";
+function crearTecladoVirtual(){
+  keyboardDiv.innerHTML = "";
+  for(let ch of letras){
+    const b = document.createElement('button');
+    b.className = 'key-btn';
+    b.textContent = ch;
+    b.id = `key-${ch}`;
+    b.addEventListener('click', ()=> handleLetterInput(ch));
+    keyboardDiv.appendChild(b);
+  }
+}
+crearTecladoVirtual();
+
+/* Deshabilitar/activar teclas virtuales */
+function disableKey(ch){
+  const el = document.getElementById(`key-${ch}`);
+  if(el) el.disabled = true;
+}
+function enableKey(ch){
+  const el = document.getElementById(`key-${ch}`);
+  if(el) el.disabled = false;
+}
+function resetKeyboardButtons(){
+  for(let ch of letras) enableKey(ch);
+}
+
+/* Manejar ingreso de letra (común) */
+function handleLetterInput(letra){
+  // si letra ya intentada, ignorar
+  if(letrasIntentadas.includes(letra) || intentos <= 0) return;
+  // registrar y desactivar boton virtual
+  letrasIntentadas.push(letra);
+  disableKey(letra);
+
+  if(modoSelect.value === 'multijugador' && multijugadorEnCurso){
+    verificarMultijugador(letra);
+  } else {
+    verificarIndividual(letra);
+  }
+}
+
+/* --- Verificación (Individual/Cronometrado) --- */
+function verificarIndividual(letra){
+  if(letrasAdivinadas.includes(letra) || intentos <= 0) return;
+  if(palabraSecreta.includes(letra)){
+    letrasAdivinadas.push(letra);
+  } else {
+    intentos--;
+    dibujarPersonajePaso(6 - intentos); // dibuja la parte correspondiente
+  }
+  actualizarDisplay();
+  if(palabraSecreta.split("").every(l => letrasAdivinadas.includes(l))){
+    alert(`🎉 ¡Ganaste! La palabra: ${palabraSecreta}`);
+    detenerTemporizador();
+    revelarPalabra();
+  } else if(intentos === 0){
+    alert(`💀 Perdiste. La palabra era: ${palabraSecreta}`);
+    detenerTemporizador();
+    revelarPalabra();
+  }
+}
+
+/* --- Verificación Multijugador (cada jugador juega hasta fallar) --- */
+function verificarMultijugador(letra){
+  if(!multijugadorEnCurso) return;
+  if(letrasAdivinadas.includes(letra) || intentos <= 0) return;
+
+  if(palabraSecreta.includes(letra)){
+    letrasAdivinadas.push(letra);
+    actualizarDisplay();
+    if(palabraSecreta.split("").every(l => letrasAdivinadas.includes(l))){
+      alert(`🎉 ¡Palabra adivinada por ${jugadores[jugadorActualIndex]}!`);
+      jugadoresAdivinaron[jugadorActualIndex] = true;
+      revelarPalabra();
+      finalizarRonda();
+    }
+    // same player continues (no turno change)
+  } else {
+    // falla: sumar error al jugador y global; dibujar; pasar turno
+    intentos--;
+    erroresPorJugador[jugadorActualIndex]++;
+    const sp = document.getElementById(`err-${jugadorActualIndex}`);
+    if(sp) sp.textContent = erroresPorJugador[jugadorActualIndex];
+    dibujarPersonajePaso(6 - intentos);
+    if(intentos === 0){
+      alert(`💀 Se acabaron los intentos. La palabra era: ${palabraSecreta}`);
+      revelarPalabra();
+      finalizarRonda();
+      return;
+    }
+    // pasar turno al siguiente que no sea el que puso la palabra
+    pasarTurnoSiguiente();
+  }
+  actualizarDisplay();
+}
+
+/* --- Eventos botones --- */
+btnNuevo.addEventListener('click', ()=> nuevoJuego());
+btnStartMulti.addEventListener('click', ()=> { /* handled above */ });
+fondoSelect.addEventListener('change', ()=> aplicarFondo(fondoSelect.value));
+
+/* --- Fondo init --- */
+function aplicarFondo(nombre){
+  fondoActual = nombre;
+  switch(nombre){
+    case 'clasico': document.body.style.backgroundColor = '#f0f0f0'; canvas.style.background = '#fff'; break;
+    case 'noche': document.body.style.backgroundColor = '#071427'; canvas.style.background = '#031324'; break;
+    case 'bosque': document.body.style.backgroundColor = '#eaf8ef'; canvas.style.background = '#f1fbf3'; break;
+    case 'fuego': document.body.style.backgroundColor = '#fff5f0'; canvas.style.background = '#fff4f0'; break;
+    case 'hielo': document.body.style.backgroundColor = '#f0f8ff'; canvas.style.background = '#eef9ff'; break;
+    default: document.body.style.backgroundColor = '#f0f0f0'; canvas.style.background = '#fff';
+  }
+}
+
+/* --- Utilities --- */
+function resetAll(){
+  letrasAdivinadas = []; letrasIntentadas = []; intentos = 6;
+  resetKeyboardButtons();
+}
+
+/* --- Revelar palabra, draw and start --- */
+function revealAndStop(){ revelarPalabra(); detenerTemporizador(); }
+
+/* --- Inicio --- */
+function iniciarApp(){
+  aplicarFondo('clasico');
+  crearTecladoVirtual();
+  nuevoJuego();
+  renderJugadoresList();
+}
+iniciarApp();
+
+</script>
+</body>
+</html>
